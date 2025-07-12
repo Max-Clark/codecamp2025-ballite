@@ -1,7 +1,7 @@
 extends Node2D
 class_name MainGame
 
-enum BallType { NORMAL = 10, SHINY = 2 }
+enum BallType { NORMAL = 10, HONEYCOMB = 2 }
 
 var board: Node2D
 var info_menu: InfoMenu
@@ -98,12 +98,12 @@ func spawn_ball():
 	board.add_child(ball)
 
 func _create_weighted_ball(pos: Vector2) -> Ball:
-	var selected_type = _weighted_choice([BallType.NORMAL, BallType.SHINY])
+	var selected_type = _weighted_choice([BallType.NORMAL, BallType.HONEYCOMB])
 	match selected_type:
 		BallType.NORMAL:
 			return preload("res://objects/balls/ball_normal.gd").new(pos, 10.0)
-		BallType.SHINY:
-			return preload("res://objects/balls/ball_shiny.gd").new(pos, 12.0)
+		BallType.HONEYCOMB:
+			return preload("res://objects/balls/ball_honeycomb.gd").new(pos, 12.0)
 		_:
 			return preload("res://objects/balls/ball_normal.gd").new(pos, 10.0)
 
