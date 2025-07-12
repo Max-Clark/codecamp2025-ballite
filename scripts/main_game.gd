@@ -8,18 +8,22 @@ var info_menu: InfoMenu
 var screen_width: float
 var screen_height: float
 
-@export var ball_spawn_rate: float = 0.25
 var spawn_timer: Timer
-var score: int = 0
+var game_state: GameState
 
 func _ready():
 	screen_width = get_viewport().get_visible_rect().size.x
 	screen_height = get_viewport().get_visible_rect().size.y
 	
+	setup_game_state()
 	setup_board()
 	setup_info_menu()
 	setup_spawn_timer()
 	connect_signals()
+
+func setup_game_state():
+	game_state = GameState.new()
+	add_child(game_state)
 
 func setup_board():
 	board = Board1.new()
@@ -34,31 +38,36 @@ func setup_info_menu():
 	info_menu = InfoMenu.new()
 	info_menu.menu_width = screen_width * 0.25
 	add_child(info_menu)
+	info_menu.initialize_game_state(game_state)
 
 func setup_spawn_timer():
 	spawn_timer = Timer.new()
-	spawn_timer.wait_time = ball_spawn_rate
+	spawn_timer.wait_time = game_state.get_drop_rate()
 	spawn_timer.timeout.connect(spawn_ball)
 	spawn_timer.autostart = true
 	add_child(spawn_timer)
 
 func connect_signals():
-	# Connect score signals from board to info menu
+	# Connect score signals from board to game state
 	if board.has_signal("score_changed"):
 		board.score_changed.connect(_on_score_changed)
 	
 	# Connect info menu button signals
-	info_menu.reset_score_requested.connect(_on_reset_score)
+	info_menu.reset_requested.connect(_on_reset)
 	info_menu.board_change_requested.connect(_on_board_change)
+	info_menu.upgrade_requested.connect(_on_upgrade_requested)
+	info_menu.unlock_ball_requested.connect(_on_unlock_ball_requested)
+	
+	# Connect game state signals
+	game_state.upgrade_purchased.connect(_on_upgrade_purchased)
 
-func _on_score_changed(new_score: int):
-	score = new_score
-	info_menu.update_score(score)
+func _on_score_changed(points_earned: int):
+	# Add points directly - ball multipliers are applied during spawning
+	game_state.add_points(points_earned)
 
-func _on_reset_score():
-	score = 0
+func _on_reset():
+	game_state.reset_upgrades()
 	board.score = 0
-	info_menu.update_score(score)
 
 func _on_board_change(board_number: int):
 	# Remove current board
@@ -88,8 +97,7 @@ func _on_board_change(board_number: int):
 	# Reconnect score signal
 	board.score_changed.connect(_on_score_changed)
 	
-	# Reset score
-	_on_reset_score()
+	# Don't reset score when changing boards
 
 func spawn_ball():
 	var ballPos = Vector2(board.board_width / 2 + randf_range(-100, 100), 0)
@@ -98,26 +106,36 @@ func spawn_ball():
 	board.add_child(ball)
 
 func _create_weighted_ball(pos: Vector2) -> Ball:
-	var selected_type = _weighted_choice([BallType.NORMAL, BallType.SHINY])
-	match selected_type:
-		BallType.NORMAL:
-			return preload("res://objects/balls/ball_normal.gd").new(pos, 10.0)
-		BallType.SHINY:
-			return preload("res://objects/balls/ball_shiny.gd").new(pos, 12.0)
-		_:
-			return preload("res://objects/balls/ball_normal.gd").new(pos, 10.0)
+	# Select random ball config from unlocked balls
+	var unlocked_configs = game_state.get_unlocked_ball_configs()
+	if unlocked_configs.is_empty():
+		return null
+	
+	var selected_config = unlocked_configs[randi() % unlocked_configs.size()]
+	
+	# Get upgrade levels for this ball
+	var level_data = {
+		"drop_rate": game_state.ball_drop_rate_levels.get(selected_config.id, 1),
+		"multiplier": game_state.ball_multiplier_levels.get(selected_config.id, 1),
+		"gravity": game_state.ball_gravity_levels.get(selected_config.id, 1)
+	}
+	
+	# Use BallFactory to create the ball
+	return BallFactory.create_ball(selected_config, pos, level_data)
 
-func _weighted_choice(choices: Array[BallType]) -> BallType:
-	var total_weight = 0
-	for choice in choices:
-		total_weight += choice
-	
-	var random_value = randf() * total_weight
-	var current_weight = 0
-	
-	for choice in choices:
-		current_weight += choice
-		if random_value <= current_weight:
-			return choice
-	
-	return choices[0]
+func _update_spawn_rate():
+	# Update spawn timer to use the fastest drop rate from unlocked balls
+	spawn_timer.wait_time = game_state.get_drop_rate()
+
+func _on_upgrade_requested(upgrade_type: String, ball_id: String):
+	if game_state.purchase_upgrade(upgrade_type, ball_id):
+		# Update spawn rate if drop rate was upgraded
+		if upgrade_type == "drop_rate":
+			_update_spawn_rate()
+
+func _on_unlock_ball_requested():
+	game_state.unlock_next_ball()
+
+func _on_upgrade_purchased(_upgrade_type: String, _ball_id: String, _new_level: int):
+	# Handle any additional logic when upgrades are purchased
+	pass
