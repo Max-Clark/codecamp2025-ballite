@@ -1,173 +1,236 @@
-extends Node
 class_name GameState
 
-# Currency
 var points: int = 0
 
-# Ball configurations and registry
-var ball_registry: BallRegistry = BallRegistry.new()
-var all_ball_configs: Array[BallConfig] = []
+var ball_state: Dictionary = {
+	NormalBall.BALL_NAME: BallState.new(
+		BallUpgrades.new(
+			MultUpgradesContainer.new([
+				FloatUpgrade.new(0, NormalBall.DEFAULT_MULTIPLIER),
+				FloatUpgrade.new(1000, NormalBall.DEFAULT_MULTIPLIER * 1.1),
+				FloatUpgrade.new(10000, NormalBall.DEFAULT_MULTIPLIER * 1.2),
+				FloatUpgrade.new(100000, NormalBall.DEFAULT_MULTIPLIER * 1.3)
+			]),
+			GravUpgradesContainer.new([
+				FloatUpgrade.new(0, NormalBall.DEFAULT_GRAVITY),
+				FloatUpgrade.new(100000, NormalBall.DEFAULT_GRAVITY)
+			]),
+			MassUpgradesContainer.new([
+				FloatUpgrade.new(0, NormalBall.DEFAULT_MASS),
+				FloatUpgrade.new(100000, NormalBall.DEFAULT_MASS * 2.0)
+			]),
+			SizeUpgradesContainer.new([
+				FloatUpgrade.new(0, NormalBall.DEFAULT_SIZE),
+				FloatUpgrade.new(1000, NormalBall.DEFAULT_SIZE * 0.95),
+				FloatUpgrade.new(100000, NormalBall.DEFAULT_SIZE * 0.90),
+				FloatUpgrade.new(1000000, NormalBall.DEFAULT_SIZE * 0.85)
+			]),
+			RateUpgradesContainer.new([
+				FloatUpgrade.new(0, NormalBall.DEFAULT_RATE),
+				FloatUpgrade.new(100, NormalBall.DEFAULT_RATE - 1),
+				FloatUpgrade.new(1000, NormalBall.DEFAULT_RATE - 2),
+				FloatUpgrade.new(10000, NormalBall.DEFAULT_RATE - 4),
+			])
+		),
+		Globals.LockedState.UNLOCKED,
+		0.0
+	),
+	HoneycombBall.BALL_NAME:  BallState.new(
+		BallUpgrades.new(
+			MultUpgradesContainer.new([
+				FloatUpgrade.new(0, HoneycombBall.DEFAULT_MULTIPLIER),
+				FloatUpgrade.new(1000, HoneycombBall.DEFAULT_MULTIPLIER * 1.1),
+				FloatUpgrade.new(10000, HoneycombBall.DEFAULT_MULTIPLIER * 1.2),
+				FloatUpgrade.new(100000, HoneycombBall.DEFAULT_MULTIPLIER * 1.3)
+			]),
+			GravUpgradesContainer.new([
+				FloatUpgrade.new(0, HoneycombBall.DEFAULT_GRAVITY),
+				FloatUpgrade.new(100000, HoneycombBall.DEFAULT_GRAVITY)
+			]),
+			MassUpgradesContainer.new([
+				FloatUpgrade.new(0, HoneycombBall.DEFAULT_MASS),
+				FloatUpgrade.new(100000, HoneycombBall.DEFAULT_MASS * 2.0)
+			]),
+			SizeUpgradesContainer.new([
+				FloatUpgrade.new(0, HoneycombBall.DEFAULT_SIZE),
+				FloatUpgrade.new(1000, HoneycombBall.DEFAULT_SIZE * 0.95),
+				FloatUpgrade.new(100000, HoneycombBall.DEFAULT_SIZE * 0.90),
+				FloatUpgrade.new(1000000, HoneycombBall.DEFAULT_SIZE * 0.85)
+			]),
+			RateUpgradesContainer.new([
+				FloatUpgrade.new(0, HoneycombBall.DEFAULT_RATE),
+				FloatUpgrade.new(100, HoneycombBall.DEFAULT_RATE - 1),
+				FloatUpgrade.new(1000, HoneycombBall.DEFAULT_RATE - 2),
+				FloatUpgrade.new(10000, HoneycombBall.DEFAULT_RATE - 4),
+			])
+		),
+		Globals.LockedState.LOCKED,
+		500.0
+	),
 
-# Ball unlock status (using ball IDs)
-var unlocked_ball_ids: Array[String] = []
-
-# Ball-specific upgrade levels (using ball IDs)
-var ball_drop_rate_levels: Dictionary = {}
-var ball_multiplier_levels: Dictionary = {}
-var ball_gravity_levels: Dictionary = {}
-
-signal points_changed(new_points: int)
-signal ball_unlocked(ball_id: String)
-signal upgrade_purchased(upgrade_type: String, ball_id: String, new_level: int)
-
-func _ready():
-	initialize_ball_system()
-
-func initialize_ball_system():
-	all_ball_configs = BallRegistry.get_all_balls()
-	
-	# Initialize first ball as unlocked
-	if all_ball_configs.size() > 0:
-		var first_ball = all_ball_configs[0]
-		unlocked_ball_ids = [first_ball.id]
-		_initialize_ball_levels(first_ball.id)
-
-func _initialize_ball_levels(ball_id: String):
-	ball_drop_rate_levels[ball_id] = 1
-	ball_multiplier_levels[ball_id] = 1
-	ball_gravity_levels[ball_id] = 1
+}
 
 func add_points(amount: int):
 	points += amount
-	points_changed.emit(points)
 
-func spend_points(amount: int) -> bool:
+func spend_points(amount: float) -> bool:
 	if points >= amount:
-		points -= amount
-		points_changed.emit(points)
+		points -= int(amount)
 		return true
 	return false
 
-# Ball unlock functions
-func can_unlock_next_ball() -> bool:
-	var next_ball = get_next_ball_to_unlock()
-	return next_ball != null and points >= next_ball.unlock_cost
+func get_unlocked_balls() -> Array[String]:
+	var unlocked: Array[String] = []
+	for ball_name in ball_state.keys():
+		if ball_state[ball_name].unlocked == Globals.LockedState.UNLOCKED:
+			unlocked.append(ball_name)
+	return unlocked
 
-func get_next_ball_to_unlock() -> BallConfig:
-	for config in all_ball_configs:
-		if config.id not in unlocked_ball_ids:
-			return config
-	return null
+func get_locked_balls() -> Array[String]:
+	var locked: Array[String] = []
+	for ball_name in ball_state.keys():
+		if ball_state[ball_name].unlocked == Globals.LockedState.LOCKED:
+			locked.append(ball_name)
+	return locked
 
-func unlock_ball(ball_config: BallConfig) -> bool:
-	if spend_points(ball_config.unlock_cost):
-		unlocked_ball_ids.append(ball_config.id)
-		_initialize_ball_levels(ball_config.id)
-		ball_unlocked.emit(ball_config.id)
-		return true
+func unlock_ball(ball_name: String) -> bool:
+	if ball_name in ball_state and ball_state[ball_name].unlocked == Globals.LockedState.LOCKED:
+		var cost = ball_state[ball_name].cost
+		if spend_points(cost):
+			ball_state[ball_name].unlocked = Globals.LockedState.UNLOCKED
+			# Start timer for newly unlocked ball
+			ball_state[ball_name].start_timer()
+			return true
 	return false
 
-func unlock_next_ball() -> bool:
-	var next_ball = get_next_ball_to_unlock()
-	if next_ball:
-		return unlock_ball(next_ball)
+func can_unlock_ball(ball_name: String) -> bool:
+	if ball_name in ball_state and ball_state[ball_name].unlocked == Globals.LockedState.LOCKED:
+		return points >= ball_state[ball_name].cost 
 	return false
 
-# Ball-specific upgrade functions
-func get_ball_config(ball_id: String) -> BallConfig:
-	return ball_registry.get_ball_config(ball_id)
+func get_unlock_cost(ball_name: String) -> float:
+	if ball_name in ball_state:
+		return ball_state[ball_name].cost
+	return 0.0
 
-func get_ball_drop_rate(ball_id: String) -> float:
-	var config = get_ball_config(ball_id)
-	if not config:
-		return 0.3
-	var level = ball_drop_rate_levels.get(ball_id, 1)
-	return config.get_drop_rate(level)
-
-func get_ball_multiplier(ball_id: String) -> float:
-	var config = get_ball_config(ball_id)
-	if not config:
-		return 1.0
-	var level = ball_multiplier_levels.get(ball_id, 1)
-	return config.get_multiplier(level)
-
-func get_ball_gravity(ball_id: String) -> float:
-	var config = get_ball_config(ball_id)
-	if not config:
-		return 1.0
-	var level = ball_gravity_levels.get(ball_id, 1)
-	return config.get_gravity(level)
-
-# Legacy compatibility method - returns fastest drop rate from unlocked balls
-func get_drop_rate() -> float:
-	var fastest_rate = 999.0
-	for ball_id in unlocked_ball_ids:
-		var rate = get_ball_drop_rate(ball_id)
-		if rate < fastest_rate:
-			fastest_rate = rate
-	return fastest_rate if fastest_rate < 999.0 else 0.3
-
-# Cost calculation functions
-func get_upgrade_cost(upgrade_type: String, ball_id: String) -> int:
-	var config = get_ball_config(ball_id)
-	if not config:
-		return 0
-	
-	var level: int
-	match upgrade_type:
-		"drop_rate":
-			level = ball_drop_rate_levels.get(ball_id, 1)
-		"multiplier":
-			level = ball_multiplier_levels.get(ball_id, 1)
-		"gravity":
-			level = ball_gravity_levels.get(ball_id, 1)
-		_:
-			return 0
-	
-	return config.get_upgrade_cost(upgrade_type, level)
-
-func can_afford_upgrade(upgrade_type: String, ball_id: String) -> bool:
-	return points >= get_upgrade_cost(upgrade_type, ball_id)
-
-# Purchase upgrade functions
-func purchase_upgrade(upgrade_type: String, ball_id: String) -> bool:
-	var cost = get_upgrade_cost(upgrade_type, ball_id)
-	if not spend_points(cost):
+func can_upgrade(ball_name: String, upgrade_type: String) -> bool:
+	if ball_name not in ball_state:
 		return false
 	
+	var upgrades = ball_state[ball_name].upgrades
+	var container = _get_upgrade_container(upgrades, upgrade_type)
+	if not container:
+		return false
+	
+	var next_upgrade = container.preview_upgrade()
+	return next_upgrade != null and points >= next_upgrade.cost
+
+func purchase_upgrade(ball_name: String, upgrade_type: String) -> bool:
+	if not can_upgrade(ball_name, upgrade_type):
+		return false
+	
+	var upgrades = ball_state[ball_name].upgrades
+	var container = _get_upgrade_container(upgrades, upgrade_type)
+	var next_upgrade = container.preview_upgrade()
+	
+	if spend_points(next_upgrade.cost):
+		container.buy_upgrade()
+		# Update timer if rate was upgraded
+		if upgrade_type == BallUpgrades.RATE_UPGRADE_STRING:
+			ball_state[ball_name].update_timer_rate()
+		return true
+	return false
+
+func get_upgrade_cost(ball_name: String, upgrade_type: String) -> float:
+	if ball_name not in ball_state:
+		return 0.0
+	
+	var upgrades = ball_state[ball_name].upgrades
+	var container = _get_upgrade_container(upgrades, upgrade_type)
+	if not container:
+		return 0.0
+	
+	var next_upgrade = container.preview_upgrade()
+	return next_upgrade.cost if next_upgrade else 0.0
+
+func get_upgrade_value(ball_name: String, upgrade_type: String) -> float:
+	if ball_name not in ball_state:
+		return 0.0
+	
+	var upgrades = ball_state[ball_name].upgrades
+	var container = _get_upgrade_container(upgrades, upgrade_type)
+	if not container:
+		return 0.0
+	
+	return container.get_value()
+
+func get_fastest_drop_rate() -> float:
+	var fastest_rate = 999.0
+	for ball_name in get_unlocked_balls():
+		var rate = get_upgrade_value(ball_name, BallUpgrades.RATE_UPGRADE_STRING)
+		if rate < fastest_rate:
+			fastest_rate = rate
+	return fastest_rate
+
+func _get_upgrade_container(upgrades: BallUpgrades, upgrade_type: String):
 	match upgrade_type:
-		"drop_rate":
-			ball_drop_rate_levels[ball_id] = ball_drop_rate_levels.get(ball_id, 1) + 1
-		"multiplier":
-			ball_multiplier_levels[ball_id] = ball_multiplier_levels.get(ball_id, 1) + 1
-		"gravity":
-			ball_gravity_levels[ball_id] = ball_gravity_levels.get(ball_id, 1) + 1
+		BallUpgrades.MULT_UPGRADE_STRING:
+			return upgrades.upgrades[BallUpgrades.MULT_UPGRADE_STRING]
+		BallUpgrades.GRAV_UPGRADE_STRING:
+			return upgrades.upgrades[BallUpgrades.GRAV_UPGRADE_STRING]
+		BallUpgrades.MASS_UPGRADE_STRING:
+			return upgrades.upgrades[BallUpgrades.MASS_UPGRADE_STRING]
+		BallUpgrades.SIZE_UPGRADE_STRING:
+			return upgrades.upgrades[BallUpgrades.SIZE_UPGRADE_STRING]
+		BallUpgrades.RATE_UPGRADE_STRING:
+			return upgrades.upgrades[BallUpgrades.RATE_UPGRADE_STRING]
 		_:
-			return false
-	
-	var new_level = ball_drop_rate_levels.get(ball_id, 1)
-	upgrade_purchased.emit(upgrade_type, ball_id, new_level)
-	return true
+			return null
 
-func get_unlocked_ball_configs() -> Array[BallConfig]:
-	var configs: Array[BallConfig] = []
-	for ball_id in unlocked_ball_ids:
-		var config = get_ball_config(ball_id)
-		if config:
-			configs.append(config)
-	return configs
+func create_ball(ball_name: String, pos: Vector2) -> Ball:
+	if ball_name not in ball_state or ball_state[ball_name].unlocked == Globals.LockedState.LOCKED:
+		return null
+	
+	var ball: Ball
+	match ball_name:
+		NormalBall.BALL_NAME:
+			ball = NormalBall.new(pos)
+		HoneycombBall.BALL_NAME:
+			ball = HoneycombBall.new(pos)
+		_:
+			return null
+	
+	# Apply upgrades to the ball
+	if ball:
+		_apply_upgrades_to_ball(ball, ball_name)
+	
+	return ball
 
-func reset_upgrades():
-	points = 0
-	unlocked_ball_ids.clear()
-	ball_drop_rate_levels.clear()
-	ball_multiplier_levels.clear()
-	ball_gravity_levels.clear()
+func _apply_upgrades_to_ball(ball: Ball, ball_name: String):
+	# Apply mass
+	ball.mass = get_upgrade_value(ball_name, BallUpgrades.MASS_UPGRADE_STRING)
 	
-	# Re-initialize with first ball
-	if all_ball_configs.size() > 0:
-		var first_ball = all_ball_configs[0]
-		unlocked_ball_ids = [first_ball.id]
-		_initialize_ball_levels(first_ball.id)
+	# Apply gravity
+	ball.gravity_scale = get_upgrade_value(ball_name, BallUpgrades.GRAV_UPGRADE_STRING)
 	
-	points_changed.emit(points)
+	# Apply size (need to implement in Ball class)
+	ball.set_ball_size(get_upgrade_value(ball_name, BallUpgrades.SIZE_UPGRADE_STRING))
+	
+	# Multiplier will be applied when scoring
+
+func initialize_ball_timers(parent_node: Node):
+	# Initialize timers for all ball states
+	for ball_name in ball_state.keys():
+		var ball_state_obj = ball_state[ball_name]
+		ball_state_obj.initialize_timer(parent_node, ball_name)
+		
+		# Start timer only if ball is unlocked
+		if ball_state_obj.unlocked == Globals.LockedState.UNLOCKED:
+			ball_state_obj.start_timer()
+
+func connect_ball_spawn_signals(target_object: Object, method_name: String):
+	# Connect all ball state spawn signals to the target method
+	for ball_name in ball_state.keys():
+		var ball_state_obj = ball_state[ball_name]
+		if not ball_state_obj.spawn_requested.is_connected(Callable(target_object, method_name)):
+			ball_state_obj.spawn_requested.connect(Callable(target_object, method_name))

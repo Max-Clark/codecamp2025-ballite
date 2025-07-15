@@ -1,0 +1,20 @@
+[gd_scene load_steps=5 format=3 uid="uid://cgiauktnt8qon"]
+
+[ext_resource type="Script" uid="uid://43donhgqb0t5" path="res://ball/normal/normal.gd" id="1_l6cl0"]
+[ext_resource type="Shader" uid="uid://babeyr68qyeg6" path="res://shaders/ball/normal.gdshader" id="2_prale"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_prale"]
+shader = ExtResource("2_prale")
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_l6cl0"]
+
+[node name="Normal" type="Node2D"]
+script = ExtResource("1_l6cl0")
+
+[node name="NormalBall" type="RigidBody2D" parent="."]
+script = ExtResource("1_l6cl0")
+metadata/_custom_type_script = "uid://43donhgqb0t5"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="NormalBall"]
+material = SubResource("ShaderMaterial_prale")
+shape = SubResource("CircleShape2D_l6cl0")

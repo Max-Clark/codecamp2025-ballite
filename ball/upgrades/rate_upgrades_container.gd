@@ -1,0 +1,2 @@
+extends FloatUpgradesContainer
+class_name RateUpgradesContainer

@@ -1,0 +1,19 @@
+[gd_scene load_steps=5 format=3 uid="uid://oiox6jfugfbb"]
+
+[ext_resource type="Script" uid="uid://bwbo0djyegwcf" path="res://ball/honeycomb/honeycomb.gd" id="1_dvx88"]
+[ext_resource type="Shader" uid="uid://c5r3py1kinqjf" path="res://shaders/ball/honeycomb.gdshader" id="2_881jf"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_881jf"]
+shader = ExtResource("2_881jf")
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_881jf"]
+
+[node name="Honeycomb" type="Node2D"]
+
+[node name="HoneycombBall" type="RigidBody2D" parent="."]
+script = ExtResource("1_dvx88")
+metadata/_custom_type_script = "uid://bwbo0djyegwcf"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HoneycombBall"]
+material = SubResource("ShaderMaterial_881jf")
+shape = SubResource("CircleShape2D_881jf")
